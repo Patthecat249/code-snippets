@@ -1,0 +1,18 @@
+# This netpol only allows outgoing traffic from pods with label trust=nee to excepted IP address
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: metadata-server
+  namespace: default
+spec:
+  podSelector:
+    matchLabels:
+      trust: nee
+  policyTypes:
+  - Egress
+  egress:
+  - to:
+    - ipBlock:
+        cidr: 0.0.0.0/0   # all outgoing traffic is blocked
+        except:
+          - 10.2.30.4/32  # only this IP can be contacted
