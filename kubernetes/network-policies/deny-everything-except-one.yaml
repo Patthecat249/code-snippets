@@ -7,7 +7,7 @@ metadata:
 spec:
   podSelector:
     matchLabels:
-      trust: nee
+      trust: nee          # only pods with this label are effected
   policyTypes:
   - Egress
   egress:
