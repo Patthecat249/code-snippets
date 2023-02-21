@@ -1,0 +1,32 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  annotations:
+  # Name of the policy
+  name: internal-policy
+  # in which namespace deployed
+  namespace: default
+spec:
+  # Diese Regel erlaubt ausgehenden Verkehr von Pods mit dem Label: name=internal im namespace=default
+  # zu Pods mit dem Label name=payroll auf TCP=8080
+  # zu Pods mit dem Label name=mysql auf TCP=3306
+  egress:
+  - to:
+    - podSelector:
+        matchLabels:
+          name: payroll
+    ports:
+    - port: 8080
+      protocol: TCP
+  - to:
+    - podSelector:
+        matchLabels:
+          name: mysql
+    ports:
+    - port: 3306
+      protocol: TCP
+  podSelector:
+    matchLabels:
+      name: internal
+  policyTypes:
+  - Egress
