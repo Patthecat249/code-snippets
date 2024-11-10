@@ -1,0 +1,21 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: instana-network-policy-client-producer
+  namespace: kafka
+spec:
+  podSelector:
+    matchLabels:
+      strimzi.io/cluster: instana
+      strimzi.io/kind: Kafka
+      strimzi.io/name: instana-kafka
+  policyTypes:
+  - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: kafka-producer  # Label, das den Kafka-Producer identifiziert
+      ports:
+        - port: 9092
+          protocol: TCP

@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kafka-client-config
+  namespace: kafka  # Namespace, in dem die ConfigMap erstellt wird
+data:
+  client.properties: |
+    security.protocol=SASL_PLAINTEXT
+    sasl.mechanism=SCRAM-SHA-512
+    sasl.jaas.config=org.apache.kafka.common.security.scram.ScramLoginModule required username="kafkatestuser" password="hfkMeE160L3tCApsGhfZ4vVg6q3XfzC0";

@@ -1,0 +1,190 @@
+apiVersion: elasticsearch.k8s.elastic.co/v1
+kind: Elasticsearch
+metadata:
+  name: instana # Cluster-Name basierend auf pmcmx3 (Cluster) und instana (Applikation)
+  namespace: instana-elastic-s-i0
+spec:
+  version: 7.17.20
+  image: artifact-public.instana.io/self-hosted-images/3rd-party/datastore/elasticsearch:7.17.20_v0.9.0
+  monitoring:
+    logs: {}
+    metrics: {}
+  http:
+    service:
+      metadata: {}
+      spec: {}
+    tls:
+      certificate: {}
+      selfSignedCertificate:
+        disabled: true
+  auth: {}
+  transport:
+    service:
+      metadata: {}
+      spec: {}
+    tls:
+      certificate: {}
+      certificateAuthorities: {}
+  nodeSets:
+    - name: master-nodes
+      count: 3
+      config:
+        node.master: true
+        node.data: false
+        node.ingest: false
+      podTemplate:
+        spec:
+          affinity:
+            nodeAffinity:
+              requiredDuringSchedulingIgnoredDuringExecution:
+                nodeSelectorTerms:
+                  - matchExpressions:
+                      - key: hostdefiner.block.csi.ibm.com/manage-node
+                        operator: In
+                        values:
+                          - "true" # Nur auf Nodes mit diesem Label laufen lassen
+            podAntiAffinity:
+              requiredDuringSchedulingIgnoredDuringExecution:
+                - labelSelector:
+                    matchLabels:
+                      role: master
+                  topologyKey: "kubernetes.io/hostname" # Verhindert, dass mehrere Master Nodes auf dem gleichen Node laufen
+          containers:
+            - name: elasticsearch
+              env:
+                - name: ES_JAVA_OPTS
+                  value: '-Xms3g -Xmx3g'
+              resources:
+                limits:
+                  cpu: '2'
+                  memory: 4Gi
+                requests:
+                  cpu: '1'
+                  memory: 2Gi
+          securityContext:
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
+      volumeClaimTemplates:
+        - metadata:
+            name: elasticsearch-data # PVC-Name-Basis für Master Nodes
+          spec:
+            accessModes:
+              - ReadWriteOnce
+            resources:
+              requests:
+                storage: 20Gi
+            storageClassName: ibm-block-csi #ibm-block-csi
+
+    - name: data-nodes
+      count: 2
+      config:
+        node.master: false
+        node.data: true
+        node.ingest: false
+        xpack.security.authc:
+          anonymous:
+            authz_exception: false
+            roles: superuser
+            username: anonymous
+      podTemplate:
+        spec:
+          affinity:
+            nodeAffinity:
+              requiredDuringSchedulingIgnoredDuringExecution:
+                nodeSelectorTerms:
+                  - matchExpressions:
+                      - key: hostdefiner.block.csi.ibm.com/manage-node
+                        operator: In
+                        values:
+                          - "true" # Nur auf Nodes mit diesem Label laufen lassen
+            podAntiAffinity:
+              requiredDuringSchedulingIgnoredDuringExecution:
+                - labelSelector:
+                    matchLabels:
+                      role: data
+                  topologyKey: "kubernetes.io/hostname" # Verhindert, dass mehrere Data Nodes auf dem gleichen Node laufen
+          containers:
+            - name: elasticsearch
+              env:
+                - name: ES_JAVA_OPTS
+                  value: '-Xms6g -Xmx6g'
+              resources:
+                limits:
+                  cpu: '4'
+                  memory: 10Gi
+                requests:
+                  cpu: '2'
+                  memory: 5Gi
+          securityContext:
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
+      volumeClaimTemplates:
+        - metadata:
+            name: elasticsearch-data # PVC-Name-Basis für Data Nodes
+          spec:
+            accessModes:
+              - ReadWriteOnce
+            resources:
+              requests:
+                storage: 50Gi
+            storageClassName: ibm-block-csi
+
+    - name: ingest-nodes
+      count: 2
+      config:
+        node.master: false
+        node.data: false
+        node.ingest: true
+      podTemplate:
+        spec:
+          affinity:
+            nodeAffinity:
+              requiredDuringSchedulingIgnoredDuringExecution:
+                nodeSelectorTerms:
+                  - matchExpressions:
+                      - key: hostdefiner.block.csi.ibm.com/manage-node
+                        operator: In
+                        values:
+                          - "true" # Nur auf Nodes mit diesem Label laufen lassen
+            podAntiAffinity:
+              requiredDuringSchedulingIgnoredDuringExecution:
+                - labelSelector:
+                    matchLabels:
+                      role: ingest
+                  topologyKey: "kubernetes.io/hostname" # Verhindert, dass mehrere Ingest Nodes auf dem gleichen Node laufen
+          containers:
+            - name: elasticsearch
+              env:
+                - name: ES_JAVA_OPTS
+                  value: '-Xms2g -Xmx2g'
+              resources:
+                limits:
+                  cpu: '2'
+                  memory: 4Gi
+                requests:
+                  cpu: '1'
+                  memory: 2Gi
+          securityContext:
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
+      volumeClaimTemplates:
+        - metadata:
+            name: elasticsearch-data # PVC-Name-Basis für Ingest Nodes
+          spec:
+            accessModes:
+              - ReadWriteOnce
+            resources:
+              requests:
+                storage: 5Gi
+            storageClassName: ibm-block-csi
+  updateStrategy:
+    changeBudget: {}
+  podDisruptionBudget:
+    spec:
+      minAvailable: 2
+      selector:
+        matchLabels:
+          elasticsearch.k8s.elastic.co/cluster-name: instana

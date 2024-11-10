@@ -1,0 +1,35 @@
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaUser
+metadata:
+  name: kafkatestuser
+  namespace: kafka
+  labels:
+    strimzi.io/cluster: instana
+spec:
+  authentication:
+    type: scram-sha-512
+  authorization:
+    type: simple
+    acls:
+      - resource:
+          type: group
+          name: console-consumer-*
+          patternType: prefix
+        operations:
+          - Read
+      - operations:
+          - Describe
+        resource:
+          name: kafka-cluster
+          patternType: literal
+          type: cluster
+      - operations:
+          - Read
+          - Write
+          - Create
+          - Describe
+          - DescribeConfigs
+        resource:
+          name: test-topic
+          patternType: literal
+          type: topic

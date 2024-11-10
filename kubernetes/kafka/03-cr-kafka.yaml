@@ -1,0 +1,120 @@
+---
+apiVersion: kafka.strimzi.io/v1beta2
+kind: Kafka
+metadata:
+  name: instana
+  namespace: kafka
+  labels:
+    app.kubernetes.io/instance: kafka-app
+    strimzi.io/cluster: instana
+spec:
+  entityOperator:
+    template:
+      pod:
+        tmpDirSizeLimit: 100Mi  # Begrenzung für temporäre Verzeichnisse auf 100 MiB, um Speicherengpässe zu vermeiden
+    userOperator:
+      # image: 'artifact-public.instana.io/self-hosted-images/3rd-party/operator/strimzi:0.41.0_v0.9.0'
+      resources:
+        limits:
+          cpu: '1'
+          memory: 2Gi
+        requests:
+          cpu: '1'
+          memory: 512Mi
+  kafka:
+    config:
+      default.replication.factor: 3  # Erhöht für Redundanz; verhindert Datenverlust bei einem Broker-Ausfall
+      min.insync.replicas: 2         # Mindestanzahl synchroner Replikate, um hohe Datenintegrität zu gewährleisten
+    resources:
+      limits:
+        cpu: 6
+        memory: 10Gi
+      requests:
+        cpu: '4'
+        memory: 6Gi   # Requests auf 6Gi angepasst, um mit den JVM-Heap-Einstellungen übereinzustimmen und Speicherknappheit zu vermeiden
+    version: 3.8.0
+    authorization:
+      superUsers:
+        - strimzi-kafka-user
+      type: simple
+    # image: 'artifact-public.instana.io/self-hosted-images/3rd-party/datastore/kafka:0.41.0-kafka-3.6.2_v0.7.0'
+    storage:
+      type: jbod
+      volumes:
+        - class: ocs-storagecluster-cephfs  # StorageClass gesetzt auf ocs-storagecluster-cephfs
+          deleteClaim: true
+          id: 0
+          size: 50Gi
+          type: persistent-claim
+    replicas: 3
+    jvmOptions:
+      '-Xms': 6G
+      '-Xmx': 6G
+    listeners:
+      - authentication:
+          type: scram-sha-512
+        configuration:
+          useServiceDnsDomain: true
+        name: scram
+        port: 9092
+        tls: false
+        type: internal
+    template:
+      pod:
+        livenessProbe:
+          initialDelaySeconds: 15
+          timeoutSeconds: 5
+          periodSeconds: 10
+        readinessProbe:
+          initialDelaySeconds: 15
+          timeoutSeconds: 5
+          periodSeconds: 10
+        tmpDirSizeLimit: 100Mi  # Begrenzung für temporäre Verzeichnisse auf 100 MiB
+        affinity:
+          nodeAffinity:
+            requiredDuringSchedulingIgnoredDuringExecution:
+              nodeSelectorTerms:
+                - matchExpressions:
+                    - key: node-role.kubernetes.io/worker  # Node-Affinitätsregel für Block Storage
+                      operator: In
+                      values:
+                        - ''
+          podAntiAffinity:
+            requiredDuringSchedulingIgnoredDuringExecution:
+              - labelSelector:
+                  matchLabels:
+                    app.kubernetes.io/instance: kafka-app
+                topologyKey: "kubernetes.io/hostname"  # Verhindert, dass Kafka-Pods auf dem gleichen Node landen
+  zookeeper:
+    replicas: 3
+    resources:
+      limits:
+        cpu: 2
+        memory: 3Gi
+      requests:
+        cpu: '1'
+        memory: 2Gi
+    storage:
+      class: ocs-storagecluster-cephfs  # StorageClass für Zookeeper auf ocs-storagecluster-cephfs gesetzt
+      deleteClaim: true
+      size: 20Gi  # Speicher für Zookeeper auf 20 Gi erhöht, um ausreichend Kapazität für Metadaten zu gewährleisten
+      type: persistent-claim
+    template:
+      pod:
+        tmpDirSizeLimit: 100Mi  # Begrenzung für temporäre Verzeichnisse auf 100 MiB
+        affinity:
+          nodeAffinity:
+            requiredDuringSchedulingIgnoredDuringExecution:
+              nodeSelectorTerms:
+                - matchExpressions:
+                    - key: node-role.kubernetes.io/worker  # Node-Affinitätsregel für Block Storage auf Zookeeper
+                      operator: In
+                      values:
+                        - ''
+          podAntiAffinity:
+            requiredDuringSchedulingIgnoredDuringExecution:
+              - labelSelector:
+                  matchLabels:
+                    app.kubernetes.io/instance: kafka-app
+                topologyKey: "kubernetes.io/hostname"  # Verhindert, dass Zookeeper-Pods auf dem gleichen Node landen
+

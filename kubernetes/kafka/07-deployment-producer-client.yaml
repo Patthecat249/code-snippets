@@ -1,0 +1,50 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kafka-producer-deployment
+  namespace: kafka
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: kafka-producer
+  template:
+    metadata:
+      labels:
+        app: kafka-producer
+    spec:
+      containers:
+        - name: kafka-producer
+          image: confluentinc/cp-kafka:latest
+          env:
+            - name: KAFKA_BROKER
+              value: "instana-kafka-bootstrap.kafka:9092"
+            - name: TOPIC_NAME
+              value: "test-topic"
+          command: ["sh", "-c"]
+          args:
+            - |
+              COUNTER=1
+              while true; do
+                MESSAGE="$(date): Test Message $COUNTER"
+                echo "$MESSAGE"  # Ausgabe der Nachricht an STDOUT
+                echo "$MESSAGE" | kafka-console-producer --broker-list $KAFKA_BROKER --topic $TOPIC_NAME --producer.config /config/client.properties --property linger.ms=0
+                COUNTER=$((COUNTER + 1))  # Erhöht den Zähler
+                sleep 0.5
+              done
+          volumeMounts:
+            - name: kafka-client-config
+              mountPath: /config
+              readOnly: true
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - "ALL"
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
+      volumes:
+        - name: kafka-client-config
+          configMap:
+            name: kafka-client-config
